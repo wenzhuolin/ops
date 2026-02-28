@@ -205,8 +205,20 @@ GET /api/job/<job_id>?offset=0
 cd /opt/ops-console
 sudo bash install_ip_mode.sh \
   --default-repo https://github.com/your-org/patch-system.git \
-  --ops-username admin \
-  --ops-password 'StrongOpsPass_ChangeMe' \
   --nginx-user opsweb \
   --nginx-password 'StrongNginxPass_ChangeMe'
+```
+
+说明：一键脚本默认只启用 **Nginx 单层认证**（避免双重 Basic Auth 导致 401）。  
+如需额外启用应用层认证，可加参数：`--enable-app-auth yes`。
+
+### Ops 自身维护快捷脚本
+
+已新增：`scripts/ops_admin.sh`（只维护运维页面本身）
+
+```bash
+cd /opt/ops-console
+sudo bash scripts/ops_admin.sh restart
+sudo bash scripts/ops_admin.sh stop
+sudo bash scripts/ops_admin.sh upgrade --branch main
 ```
