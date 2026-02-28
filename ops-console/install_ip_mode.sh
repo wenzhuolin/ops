@@ -156,7 +156,10 @@ install_ops_files() {
   log "Deploying ops console files..."
   mkdir -p "$INSTALL_DIR" "$PATCH_BASE_DIR"
   rsync -a --delete "$SOURCE_DIR/" "$INSTALL_DIR/"
-  chmod +x "$INSTALL_DIR/scripts/ops_task.sh"
+  if compgen -G "$INSTALL_DIR/scripts/*.sh" >/dev/null 2>&1; then
+    chmod +x "$INSTALL_DIR"/scripts/*.sh
+  fi
+  [[ -f "$INSTALL_DIR/install_ip_mode.sh" ]] && chmod +x "$INSTALL_DIR/install_ip_mode.sh"
 }
 
 install_python_requirements() {

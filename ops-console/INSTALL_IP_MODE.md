@@ -166,6 +166,18 @@ cd /opt/ops-console
 sudo bash install_ip_mode.sh --default-repo <repo-url> --ops-password '<new-pass>'
 ```
 
+Ops-only one-click maintenance script:
+
+```bash
+cd /opt/ops-console
+sudo bash scripts/ops_admin.sh restart
+sudo bash scripts/ops_admin.sh stop
+sudo bash scripts/ops_admin.sh upgrade --branch main
+
+# If /opt/ops-console is not a git repo, pass remote repo explicitly
+sudo bash scripts/ops_admin.sh upgrade --repo https://github.com/your-org/ops.git --branch main
+```
+
 ---
 
 ## 8) Script options
