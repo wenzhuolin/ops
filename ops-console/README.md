@@ -191,3 +191,22 @@ GET /api/job/<job_id>?offset=0
 - 启动命令（通过 `PATCH_START_CMD` 环境变量指定）
 
 其余接口和页面可保持不变。
+
+---
+
+## 8. Ubuntu 22+（IP 访问）一键安装
+
+已提供一键安装脚本：`install_ip_mode.sh`  
+详细说明见：`INSTALL_IP_MODE.md`
+
+示例：
+
+```bash
+cd /opt/ops-console
+sudo bash install_ip_mode.sh \
+  --default-repo https://github.com/your-org/patch-system.git \
+  --ops-username admin \
+  --ops-password 'StrongOpsPass_ChangeMe' \
+  --nginx-user opsweb \
+  --nginx-password 'StrongNginxPass_ChangeMe'
+```
