@@ -1,0 +1,24 @@
+[Unit]
+Description=Patch Ops Console (Flask)
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/ops-console
+ExecStart=/usr/bin/python3 /opt/ops-console/app.py
+Restart=always
+RestartSec=3
+Environment=PORT=4000
+Environment=HOST=0.0.0.0
+Environment=PATCH_BASE_DIR=/opt/patch-system
+Environment=PATCH_SERVICE_NAME=patch-system
+Environment=PATCH_PORT=3000
+Environment=OPS_USERNAME=admin
+Environment=OPS_PASSWORD=ChangeMeNow
+# 可选：只允许白名单 IP，多个用逗号分隔
+# Environment=OPS_ALLOWED_IPS=1.2.3.4,5.6.7.8
+# 可选：默认仓库地址
+# Environment=DEFAULT_REPO=https://github.com/your-org/patch-system.git
+
+[Install]
+WantedBy=multi-user.target

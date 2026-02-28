@@ -1,0 +1,15 @@
+[Unit]
+Description=Patch System Node App
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/patch-system/current
+ExecStart=/usr/bin/npm start
+Restart=always
+RestartSec=5
+Environment=NODE_ENV=production
+Environment=PORT=3000
+
+[Install]
+WantedBy=multi-user.target
