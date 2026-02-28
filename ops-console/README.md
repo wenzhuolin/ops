@@ -158,6 +158,8 @@ GET /api/job/<job_id>?offset=0
 - 备份目录：`/opt/patch-system/backup`
 - 升级失败：脚本会尝试自动回滚（尤其在“替换成功但服务重启失败”场景）
 - 一键回滚：点击页面 **回滚** 按钮触发
+- 下载/部署时 Git 拉取内置重试（默认 4 次，指数退避），并强制 `HTTP/1.1` 降低 TLS 中断概率  
+  可通过环境变量调整：`GIT_RETRY_COUNT`、`GIT_RETRY_DELAY`
 
 ---
 

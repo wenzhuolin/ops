@@ -13,6 +13,8 @@ META_FILE="${BASE_DIR}/.deploy_meta.json"
 SERVICE_NAME="${PATCH_SERVICE_NAME:-patch-system}"
 NODE_PORT="${PATCH_PORT:-3000}"
 START_CMD="${PATCH_START_CMD:-/usr/bin/npm start}"
+GIT_RETRY_COUNT="${GIT_RETRY_COUNT:-4}"
+GIT_RETRY_DELAY="${GIT_RETRY_DELAY:-2}"
 
 log() {
   printf '[%s] %s\n' "$(date '+%F %T')" "$*"
@@ -55,7 +57,35 @@ prepare_base() {
 clone_to_tmp() {
   rm -rf "$TMP_DIR"
   log "拉取代码: $REPO_URL @ $REF"
-  git clone --depth 1 --branch "$REF" "$REPO_URL" "$TMP_DIR"
+  git_clone_with_retry "$REPO_URL" "$REF" "$TMP_DIR"
+}
+
+git_clone_with_retry() {
+  local repo_url="$1"
+  local ref_name="$2"
+  local target_dir="$3"
+  local total="${GIT_RETRY_COUNT}"
+  local delay="${GIT_RETRY_DELAY}"
+  local attempt=1
+
+  while (( attempt <= total )); do
+    rm -rf "$target_dir"
+    if git -c http.version=HTTP/1.1 clone --depth 1 --single-branch --branch "$ref_name" "$repo_url" "$target_dir"; then
+      return 0
+    fi
+
+    if (( attempt == total )); then
+      log "git clone 连续失败，已达到最大重试次数: ${total}"
+      return 1
+    fi
+
+    log "git clone 失败，${delay}s 后进行第 $((attempt + 1)) 次重试..."
+    sleep "$delay"
+    delay=$((delay * 2))
+    attempt=$((attempt + 1))
+  done
+
+  return 1
 }
 
 build_node_project() {
@@ -143,7 +173,7 @@ do_download() {
 
   rm -rf "$APP_DIR"
   log "开始下载代码（不部署）"
-  git clone --depth 1 --branch "$REF" "$REPO_URL" "$APP_DIR"
+  git_clone_with_retry "$REPO_URL" "$REF" "$APP_DIR"
 
   local commit
   commit="$(current_commit)"

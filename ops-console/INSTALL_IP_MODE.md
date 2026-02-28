@@ -147,6 +147,17 @@ journalctl -u nginx -f
 journalctl -u patch-system -f
 ```
 
+If clone fails with TLS/network errors (for example `GnuTLS recv error (-110)`), run:
+
+```bash
+sudo apt install -y ca-certificates
+sudo update-ca-certificates
+sudo timedatectl set-ntp true
+git config --global http.version HTTP/1.1
+```
+
+Then retry the download/deploy action in the web UI.
+
 ---
 
 ## 7) Common commands
