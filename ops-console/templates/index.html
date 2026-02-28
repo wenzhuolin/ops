@@ -1,0 +1,284 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>补丁系统运维页面</title>
+  <style>
+    :root {
+      --bg: #f5f7fa;
+      --card: #fff;
+      --text: #1f2937;
+      --muted: #6b7280;
+      --primary: #2563eb;
+      --danger: #dc2626;
+      --ok: #059669;
+      --border: #e5e7eb;
+      --terminal-bg: #0b1020;
+      --terminal-text: #d1fae5;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC",
+        "Microsoft YaHei", sans-serif;
+      color: var(--text);
+      background: var(--bg);
+    }
+
+    .container {
+      max-width: 1080px;
+      margin: 24px auto;
+      padding: 0 16px;
+    }
+
+    h1 { margin: 0 0 12px; font-size: 24px; }
+
+    .status-row {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px 14px;
+    }
+
+    .label {
+      font-size: 12px;
+      color: var(--muted);
+      margin-bottom: 8px;
+    }
+
+    .value { font-weight: 600; font-size: 14px; }
+    .ok { color: var(--ok); }
+    .fail { color: var(--danger); }
+
+    .form-grid {
+      display: grid;
+      grid-template-columns: 1fr 220px;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+
+    input {
+      width: 100%;
+      height: 40px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      padding: 0 12px;
+      font-size: 14px;
+      background: #fff;
+    }
+
+    .btn-row {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-bottom: 12px;
+    }
+
+    button {
+      border: 0;
+      border-radius: 8px;
+      padding: 10px 14px;
+      font-size: 14px;
+      cursor: pointer;
+      color: #fff;
+      background: var(--primary);
+    }
+
+    button.secondary { background: #4b5563; }
+    button.warn { background: var(--danger); }
+    button:disabled { opacity: 0.6; cursor: not-allowed; }
+
+    .terminal {
+      background: var(--terminal-bg);
+      color: var(--terminal-text);
+      border-radius: 10px;
+      border: 1px solid #111827;
+      min-height: 420px;
+      max-height: 520px;
+      overflow: auto;
+      padding: 12px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+      font-size: 13px;
+      line-height: 1.5;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    .hint {
+      color: var(--muted);
+      font-size: 12px;
+      margin: 4px 0 12px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>补丁系统运维页面</h1>
+
+    <div class="status-row">
+      <div class="card">
+        <div class="label">补丁系统状态 (3000)</div>
+        <div id="patchStatus" class="value">检测中...</div>
+      </div>
+      <div class="card">
+        <div class="label">当前版本 Commit</div>
+        <div id="versionCommit" class="value">-</div>
+      </div>
+      <div class="card">
+        <div class="label">当前分支/Tag</div>
+        <div id="versionRef" class="value">-</div>
+      </div>
+      <div class="card">
+        <div class="label">正在执行任务</div>
+        <div id="activeJob" class="value">无</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="form-grid">
+        <input id="repo" placeholder="Git 仓库地址，例如 https://github.com/org/repo.git" />
+        <input id="ref" placeholder="分支/Tag，默认 main" value="main" />
+      </div>
+      <div class="btn-row">
+        <button id="downloadBtn">下载代码</button>
+        <button id="deployBtn">部署服务</button>
+        <button id="upgradeBtn" class="secondary">升级服务</button>
+        <button id="rollbackBtn" class="warn">回滚</button>
+      </div>
+      <div class="hint">日志实时轮询展示。任务执行期间会自动禁用按钮，避免重复提交。</div>
+      <div id="logBox" class="terminal">等待任务启动...</div>
+    </div>
+  </div>
+
+  <script>
+    const repoInput = document.getElementById("repo");
+    const refInput = document.getElementById("ref");
+    const logBox = document.getElementById("logBox");
+    const patchStatus = document.getElementById("patchStatus");
+    const versionCommit = document.getElementById("versionCommit");
+    const versionRef = document.getElementById("versionRef");
+    const activeJob = document.getElementById("activeJob");
+
+    const buttons = {
+      download: document.getElementById("downloadBtn"),
+      deploy: document.getElementById("deployBtn"),
+      upgrade: document.getElementById("upgradeBtn"),
+      rollback: document.getElementById("rollbackBtn")
+    };
+
+    let currentJobId = null;
+    let logOffset = 0;
+    let logTimer = null;
+    let statusTimer = null;
+
+    function setButtonsDisabled(disabled) {
+      Object.values(buttons).forEach((btn) => { btn.disabled = disabled; });
+    }
+
+    function appendLog(lines) {
+      if (!lines || lines.length === 0) return;
+      logBox.textContent += "\n" + lines.join("\n");
+      logBox.scrollTop = logBox.scrollHeight;
+    }
+
+    async function fetchStatus() {
+      try {
+        const res = await fetch("/api/status");
+        if (!res.ok) return;
+        const data = await res.json();
+        patchStatus.textContent = data.patch_running ? "运行中" : "未运行";
+        patchStatus.className = "value " + (data.patch_running ? "ok" : "fail");
+        versionCommit.textContent = data.version?.commit || "-";
+        versionRef.textContent = data.version?.ref || "-";
+        activeJob.textContent = data.active_job || "无";
+      } catch (err) {
+        patchStatus.textContent = "状态获取失败";
+        patchStatus.className = "value fail";
+      }
+    }
+
+    async function startAction(action) {
+      if (currentJobId) {
+        alert("已有任务在执行，请稍后。");
+        return;
+      }
+
+      const payload = action === "rollback"
+        ? {}
+        : { repo: repoInput.value.trim(), ref: refInput.value.trim() || "main" };
+
+      if (action !== "rollback" && !payload.repo) {
+        alert("请先填写仓库地址。");
+        return;
+      }
+
+      setButtonsDisabled(true);
+      logBox.textContent = `[${new Date().toLocaleString()}] 提交任务: ${action}`;
+      logOffset = 0;
+
+      try {
+        const res = await fetch(`/api/${action}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          throw new Error(data.error || "任务提交失败");
+        }
+        currentJobId = data.job_id;
+        appendLog([`任务已创建: ${currentJobId}`]);
+        pollJob();
+      } catch (err) {
+        appendLog([`[ERROR] ${err.message}`]);
+        setButtonsDisabled(false);
+      }
+    }
+
+    async function pollJob() {
+      if (!currentJobId) return;
+      if (logTimer) clearTimeout(logTimer);
+
+      try {
+        const res = await fetch(`/api/job/${currentJobId}?offset=${logOffset}`);
+        const data = await res.json();
+        if (!res.ok) {
+          throw new Error(data.error || "日志获取失败");
+        }
+        appendLog(data.logs || []);
+        logOffset = data.next_offset || logOffset;
+
+        if (data.status === "running") {
+          logTimer = setTimeout(pollJob, 1000);
+        } else {
+          appendLog([`任务结束: ${data.status}, return_code=${data.return_code}`]);
+          currentJobId = null;
+          setButtonsDisabled(false);
+          fetchStatus();
+        }
+      } catch (err) {
+        appendLog([`[ERROR] ${err.message}`]);
+        logTimer = setTimeout(pollJob, 1500);
+      }
+    }
+
+    buttons.download.addEventListener("click", () => startAction("download"));
+    buttons.deploy.addEventListener("click", () => startAction("deploy"));
+    buttons.upgrade.addEventListener("click", () => startAction("upgrade"));
+    buttons.rollback.addEventListener("click", () => startAction("rollback"));
+
+    fetchStatus();
+    statusTimer = setInterval(fetchStatus, 5000);
+  </script>
+</body>
+</html>
