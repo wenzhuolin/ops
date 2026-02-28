@@ -8,7 +8,7 @@ The installation script configures:
 
 - Flask ops app on `127.0.0.1:4000` (not public)
 - Nginx on `80` as reverse proxy
-- Basic auth in Nginx + Basic auth in Flask
+- Basic auth in Nginx (single auth by default)
 - UFW rules to block ports `3000` and `4000` from public access
 - systemd services for `ops-console` and `patch-system`
 
@@ -45,8 +45,6 @@ cd /opt/ops-console
 sudo bash install_ip_mode.sh \
   --default-repo https://github.com/your-org/patch-system.git \
   --default-ref main \
-  --ops-username admin \
-  --ops-password 'StrongOpsPass_ChangeMe' \
   --nginx-user opsweb \
   --nginx-password 'StrongNginxPass_ChangeMe'
 ```
@@ -56,8 +54,6 @@ Optional: restrict access by office IP(s):
 ```bash
 sudo bash install_ip_mode.sh \
   --default-repo https://github.com/your-org/patch-system.git \
-  --ops-username admin \
-  --ops-password 'StrongOpsPass_ChangeMe' \
   --nginx-user opsweb \
   --nginx-password 'StrongNginxPass_ChangeMe' \
   --allowed-ips 1.2.3.4,5.6.7.8
@@ -67,7 +63,16 @@ When done, the script prints:
 
 - URL: `http://<server-ip>`
 - Nginx auth credentials
-- Ops app auth credentials
+
+Optional: if you still want app-level auth, enable it explicitly:
+
+```bash
+sudo bash install_ip_mode.sh \
+  --default-repo https://github.com/your-org/patch-system.git \
+  --enable-app-auth yes \
+  --ops-username admin \
+  --ops-password 'StrongOpsPass_ChangeMe'
+```
 
 ---
 
@@ -175,8 +180,9 @@ sudo bash install_ip_mode.sh --default-repo <repo-url> --ops-password '<new-pass
 --ops-port <port>                   default 4000
 --default-repo <url>
 --default-ref <ref>                 default main
---ops-username <name>               default admin
---ops-password <pass>               auto-generate if empty
+--enable-app-auth <yes|no>          default no
+--ops-username <name>               only used when app auth enabled
+--ops-password <pass>               only used when app auth enabled
 --nginx-user <name>                 default opsweb
 --nginx-password <pass>             auto-generate if empty
 --allowed-ips <csv>                 optional whitelist

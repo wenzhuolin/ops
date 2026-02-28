@@ -18,6 +18,7 @@ OPS_PASSWORD="${OPS_PASSWORD:-}"
 NGINX_AUTH_USER="${NGINX_AUTH_USER:-opsweb}"
 NGINX_AUTH_PASSWORD="${NGINX_AUTH_PASSWORD:-}"
 ALLOWED_IPS="${ALLOWED_IPS:-}"
+ENABLE_APP_AUTH="${ENABLE_APP_AUTH:-no}"
 ENABLE_UFW="${ENABLE_UFW:-yes}"
 AUTO_INSTALL_NODE="${AUTO_INSTALL_NODE:-yes}"
 
@@ -36,8 +37,9 @@ Options:
   --ops-port <port>               Ops app port (default: 4000)
   --default-repo <url>            Default patch git repo in UI
   --default-ref <ref>             Default branch/tag in UI (default: main)
-  --ops-username <name>           Flask basic auth username (default: admin)
-  --ops-password <pass>           Flask basic auth password (auto-generate if empty)
+  --enable-app-auth <yes|no>      Enable Flask basic auth (default: no)
+  --ops-username <name>           Flask username (used when app auth is enabled)
+  --ops-password <pass>           Flask password (used when app auth is enabled)
   --nginx-user <name>             Nginx basic auth user (default: opsweb)
   --nginx-password <pass>         Nginx basic auth password (auto-generate if empty)
   --allowed-ips <csv>             Comma-separated allowed IPs (optional)
@@ -48,8 +50,6 @@ Options:
 Examples:
   sudo bash install_ip_mode.sh \
     --default-repo https://github.com/acme/patch-system.git \
-    --ops-username admin \
-    --ops-password 'ChangeMeStrong' \
     --nginx-user opsweb \
     --nginx-password 'AnotherStrongPass' \
     --allowed-ips 1.2.3.4,5.6.7.8
@@ -91,6 +91,7 @@ parse_args() {
       --ops-port) OPS_PORT="$2"; shift 2 ;;
       --default-repo) DEFAULT_REPO="$2"; shift 2 ;;
       --default-ref) DEFAULT_REF="$2"; shift 2 ;;
+      --enable-app-auth) ENABLE_APP_AUTH="$2"; shift 2 ;;
       --ops-username) OPS_USERNAME="$2"; shift 2 ;;
       --ops-password) OPS_PASSWORD="$2"; shift 2 ;;
       --nginx-user) NGINX_AUTH_USER="$2"; shift 2 ;;
@@ -206,9 +207,12 @@ Environment=PATCH_BASE_DIR=${PATCH_BASE_DIR}
 Environment=PATCH_SERVICE_NAME=${PATCH_SERVICE_NAME}
 Environment=PATCH_PORT=${PATCH_PORT}
 Environment=DEFAULT_REPO=${DEFAULT_REPO}
-Environment=OPS_USERNAME=${OPS_USERNAME}
-Environment=OPS_PASSWORD=${OPS_PASSWORD}
 EOF
+
+  if [[ "$ENABLE_APP_AUTH" == "yes" ]]; then
+    printf 'Environment=OPS_USERNAME=%s\n' "$OPS_USERNAME" >>"$service_file"
+    printf 'Environment=OPS_PASSWORD=%s\n' "$OPS_PASSWORD" >>"$service_file"
+  fi
 
   if [[ -n "$ALLOWED_IPS" ]]; then
     printf 'Environment=OPS_ALLOWED_IPS=%s\n' "$ALLOWED_IPS" >>"$service_file"
@@ -297,10 +301,16 @@ show_summary() {
   echo "  user: ${NGINX_AUTH_USER}"
   echo "  pass: ${NGINX_AUTH_PASSWORD}"
   echo
-  echo "[Ops App Basic Auth]"
-  echo "  user: ${OPS_USERNAME}"
-  echo "  pass: ${OPS_PASSWORD}"
-  echo
+  if [[ "$ENABLE_APP_AUTH" == "yes" ]]; then
+    echo "[Ops App Basic Auth]"
+    echo "  user: ${OPS_USERNAME}"
+    echo "  pass: ${OPS_PASSWORD}"
+    echo
+  else
+    echo "[Ops App Basic Auth]"
+    echo "  disabled (recommended for IP mode to avoid double-auth 401 issues)"
+    echo
+  fi
   echo "Services:"
   echo "  systemctl status ops-console --no-pager"
   echo "  systemctl status nginx --no-pager"
@@ -318,14 +328,20 @@ main() {
   parse_args "$@"
   normalize_source_dir
 
-  [[ -n "$OPS_USERNAME" ]] || die "--ops-username cannot be empty"
   [[ -n "$DEFAULT_REF" ]] || die "--default-ref cannot be empty"
+  [[ "$ENABLE_APP_AUTH" =~ ^(yes|no)$ ]] || die "--enable-app-auth must be yes|no"
   [[ "$ENABLE_UFW" =~ ^(yes|no)$ ]] || die "--enable-ufw must be yes|no"
   [[ "$AUTO_INSTALL_NODE" =~ ^(yes|no)$ ]] || die "--auto-install-node must be yes|no"
 
-  if [[ -z "$OPS_PASSWORD" ]]; then
-    OPS_PASSWORD="$(random_password)"
-    log "Generated ops app password."
+  if [[ "$ENABLE_APP_AUTH" == "yes" ]]; then
+    [[ -n "$OPS_USERNAME" ]] || die "--ops-username cannot be empty when app auth is enabled"
+    if [[ -z "$OPS_PASSWORD" ]]; then
+      OPS_PASSWORD="$(random_password)"
+      log "Generated ops app password."
+    fi
+  else
+    OPS_USERNAME=""
+    OPS_PASSWORD=""
   fi
   if [[ -z "$NGINX_AUTH_PASSWORD" ]]; then
     NGINX_AUTH_PASSWORD="$(random_password)"
